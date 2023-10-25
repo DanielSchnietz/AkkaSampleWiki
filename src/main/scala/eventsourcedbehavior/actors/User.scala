@@ -29,6 +29,7 @@ object User {
           .persist(SlipAddedToUser(slip.ref))
           .thenRun {context.log.info("Slip added successfully")
             updatedUser => StatusReply.Success(updatedUser)
+              Behaviors.same
           }
       case _@GetBettingSlipByRef(replyTo) =>
         state.slipRef ! GetBettingSlip(replyTo)

@@ -44,7 +44,7 @@ object UserManager {
                 replyTo ! StatusReply.Success(
                   UserRegisteredResponse(
                     s"User with id $userSessionId registered to manager with actorRef ${updatedUserManager.registeredUsers(userSessionId)}"))
-
+                Behaviors.same
             }
         }
       case _@GetSlipByRef(userSessionId, replyTo) =>
