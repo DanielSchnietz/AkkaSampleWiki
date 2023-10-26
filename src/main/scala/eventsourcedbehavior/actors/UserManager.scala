@@ -5,7 +5,7 @@ import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
-import eventsourcedbehavior.actors.User.{AddBettingSlipToUser, GetBettingSlipByRef}
+//import eventsourcedbehavior.actors.User.{AddBettingSlipToUser, GetBettingSlipByRef}
 import eventsourcedbehavior.app.CborSerializable
 
 import scala.concurrent.duration.DurationInt
@@ -40,7 +40,7 @@ object UserManager {
             .persist(UserRegisteredToManager(userSessionId, user.ref))
             .thenRun {
               updatedUserManager =>
-                user ! AddBettingSlipToUser(user.ref)
+                user ! User.AddBettingSlipToUser(user.ref)
                 replyTo ! StatusReply.Success(
                   UserRegisteredResponse(
                     s"User with id $userSessionId registered to manager with actorRef ${updatedUserManager.registeredUsers(userSessionId)}"))
@@ -48,7 +48,7 @@ object UserManager {
             }
         }
       case _@GetSlipByRef(userSessionId, replyTo) =>
-         state.registeredUsers(userSessionId) ! GetBettingSlipByRef(replyTo)
+         state.registeredUsers(userSessionId) ! User.GetBettingSlipByRef(replyTo)
         Effect.none
     }
   }

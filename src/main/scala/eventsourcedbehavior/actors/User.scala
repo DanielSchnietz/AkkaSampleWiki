@@ -20,15 +20,16 @@ object User {
       (state, event) => handleEvent(state, event)
     )}
   }
-
+//Todo: Add class to minimize parameters
   def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): Effect[Event, State] = {
     command match {
-      case _@AddBettingSlipToUser(_) =>
+      case _ :AddBettingSlipToUser =>
         val slip = context.spawn(BettingSlip(userId), s"bettingSlip$userId")
         Effect
           .persist(SlipAddedToUser(slip.ref))
           .thenRun {context.log.info("Slip added successfully")
-            updatedUser => StatusReply.Success(updatedUser)
+            updatedUser =>
+              BettingSlipAddedResponse(s"Successfully added slip with ref: ${updatedUser.slipRef} to user with id: $userId")
               Behaviors.same
           }
       case _@GetBettingSlipByRef(replyTo) =>
@@ -45,10 +46,15 @@ object User {
   }
 
   //commands
+  //Because traits of Commands, Events and Responses are sealed, they can:
+  //1: Not the inherited outside of this Actor
+  //2: Produce a warning if we forget to match a type inside our pattern matching
   sealed trait Command extends CborSerializable
 
   final case class AddBettingSlipToUser(userRef: ActorRef[Command]) extends Command
   final case class GetBettingSlipByRef(replyTo: ActorRef[StatusReply[BettingSlip.Response]]) extends Command
+
+  //private final case class WrappedBettingSlipResponse(response: BettingSlip.Response) extends Command
 
   //events
   sealed trait Event extends CborSerializable
@@ -56,17 +62,23 @@ object User {
   case class SlipAddedToUser(ref: ActorRef[BettingSlip.Command]) extends Event
 
   sealed trait Response
+  //TODO: Change to adapted response
+  //We use an adapted response to avoid the handling of responses from another actor context.
+  // See https://doc.akka.io/docs/akka/current/typed/interaction-patterns.html#adapted-response for information.
   final case class GetBettingSlipResponse(slip: BettingSlip.State) extends Response
 
-  final case class BettingSlipAddedResponse(slip: ActorRef[Response]) extends Response
+  final case class BettingSlipAddedResponse(responseMsg: String) extends Response
 
   //state
+  //For this example, as the state is represents the domain model, business logic is handled inside the state.
+  //Depending on taste you can even move command- and / or eventhandlers inside the state.
   final case class State(slipRef: ActorRef[BettingSlip.Command]) extends CborSerializable {
     def addSlipToUser(ref: ActorRef[BettingSlip.Command]): State = {
       copy(ref)
     }
   }
 
+  //create companion object to be able to create an empty state like we know it from collections
   object State {
     val empty = State(null)
   }

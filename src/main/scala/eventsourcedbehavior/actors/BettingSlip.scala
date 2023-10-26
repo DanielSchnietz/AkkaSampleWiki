@@ -24,11 +24,20 @@ object BettingSlip {
       case _@GetBettingSlip(replyTo) =>
         replyTo ! StatusReply.Success(GetSlipResponse(state))
         Effect.none
+      case _@UpdateBettingSlip(replyTo, betMap, sum) =>
+        Effect
+          .persist(BettingSlipUpdated(betMap, sum))
+          .thenRun{
+            updatedBet => replyTo ! StatusReply.Success(BettingSlipUpdatedResponse(updatedBet))
+          }
     }
   }
 
   def handleEvent(state: State, event: Event): State = {
-    ???
+    event match {
+      case _@BettingSlipUpdated(betMap, sum) =>
+        state.copy(betMap = betMap, sum = sum)
+    }
   }
 
   //commands
@@ -49,4 +58,10 @@ object BettingSlip {
   object State {
     val empty = State(null, Map.empty, 0)
   }
+
+  final case class BettingSlipUpdatedResponse(updatedBet: State) extends Response
+
+  case class BettingSlipUpdated(betMap: Map[String, Float], sum: Int) extends Event
+
+  case class UpdateBettingSlip(replyTo: ActorRef[StatusReply[Response]], betMap: Map[String, Float], sum: Int) extends Command
 }
