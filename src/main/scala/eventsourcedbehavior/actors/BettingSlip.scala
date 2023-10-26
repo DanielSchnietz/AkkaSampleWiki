@@ -1,9 +1,10 @@
 package eventsourcedbehavior.actors
 
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import eventsourcedbehavior.app.CborSerializable
 
 //TODO: Implement logic in handlers and add commands/events/responses
@@ -17,6 +18,7 @@ object BettingSlip {
       (state, command) => handleCommand(userId, state, command),
       (state, event) => handleEvent(state, event)
     )
+      .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
   }
 
   def handleCommand(userId: String, state: State, command: Command): Effect[Event, State] = {
@@ -28,7 +30,9 @@ object BettingSlip {
         Effect
           .persist(BettingSlipUpdated(betMap, sum))
           .thenRun{
-            updatedBet => replyTo ! StatusReply.Success(BettingSlipUpdatedResponse(updatedBet))
+            updatedBet =>
+              replyTo ! StatusReply.Success(BettingSlipUpdatedResponse(updatedBet))
+              Behaviors.same
           }
     }
   }

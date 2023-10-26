@@ -1,12 +1,14 @@
 package eventsourcedbehavior.actors
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
-import eventsourcedbehavior.actors.BettingSlip. GetBettingSlip
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import eventsourcedbehavior.actors.BettingSlip.GetBettingSlip
 import eventsourcedbehavior.app.CborSerializable
+
+import scala.concurrent.duration.DurationInt
 
 
 object User {
@@ -18,7 +20,10 @@ object User {
       State.empty,
       (state, command) => handleCommand(context, userId, state, command),
       (state, event) => handleEvent(state, event)
-    )}
+    )
+      .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
+      .onPersistFailure(SupervisorStrategy.restartWithBackoff(200.millis, 5.seconds, 0.1))
+    }
   }
 //Todo: Add class to minimize parameters
   def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): Effect[Event, State] = {

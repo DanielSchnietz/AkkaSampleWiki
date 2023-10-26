@@ -12,18 +12,20 @@ import scala.concurrent.duration.DurationInt
 
 
 object UserManager {
-
+//TODO:Change/add exception type for supervision in guardian
   def apply(): Behavior[Command] = {
-    Behaviors.setup { context =>
-      EventSourcedBehavior[Command, Event, State](
-        PersistenceId.ofUniqueId("UserManager"),
-        State.empty,
-        (state, command) => handleCommand(context, state, command),
-        (state, event) => handleEvent(state, event)
-      )
-        .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
-        .onPersistFailure(SupervisorStrategy.restartWithBackoff(200.millis, 5.seconds, 0.1))
-    }
+    Behaviors.supervise[Command] {
+      Behaviors.setup { context =>
+        EventSourcedBehavior[Command, Event, State](
+          PersistenceId.ofUniqueId("UserManager"),
+          State.empty,
+          (state, command) => handleCommand(context, state, command),
+          (state, event) => handleEvent(state, event)
+        )
+          .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
+          .onPersistFailure(SupervisorStrategy.restartWithBackoff(200.millis, 5.seconds, 0.1))
+      }
+    }.onFailure[IllegalStateException](SupervisorStrategy.restart)
   }
 
   def handleCommand(context: ActorContext[Command], state: State, command: Command): Effect[Event, State] = {
