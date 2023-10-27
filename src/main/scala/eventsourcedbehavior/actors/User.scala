@@ -54,7 +54,7 @@ object User {
   //2: Produce a warning if we forget to match a type inside our pattern matching
   sealed trait Command extends CborSerializable
 
-  final case class AddBettingSlipToUser(userRef: ActorRef[Command], replyTo: ActorRef[UserManager.Response]) extends Command
+  final case class AddBettingSlipToUser(userRef: ActorRef[Command], replyTo: ActorRef[Response]) extends Command
   final case class GetBettingSlipByRef(replyTo: ActorRef[BettingSlip.Response]) extends Command
 
   //private final case class WrappedBettingSlipResponse(response: BettingSlip.Response) extends Command

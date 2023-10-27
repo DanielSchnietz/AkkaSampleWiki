@@ -29,6 +29,8 @@ object UserManager {
   }
 
   def handleCommand(context: ActorContext[Command], state: State, command: Command): ReplyEffect[Event, State] = {
+    val userResponseMapper: ActorRef[User.Response] =
+      context.messageAdapter(rsp => WrappedUserResponse(rsp))
     command match {
       case _@RegisterUserToManager(userSessionId, replyTo) =>
         if(state.registeredUsers.exists(_._1 == userSessionId)) {
@@ -41,7 +43,7 @@ object UserManager {
           Effect
             .persist(UserRegisteredToManager(userSessionId, user.ref))
             .thenRun {
-                _: State => user ! User.AddBettingSlipToUser(user.ref, replyTo)
+                _: State => user ! User.AddBettingSlipToUser(user.ref, userResponseMapper)
             }
             .thenReply(replyTo)(_ =>
               UserRegisteredResponse(
@@ -50,6 +52,12 @@ object UserManager {
       case _@GetSlipByRef(userSessionId, replyTo) =>
          state.registeredUsers(userSessionId) ! User.GetBettingSlipByRef(replyTo)
         Effect.noReply
+      case wrapped: WrappedUserResponse =>
+        wrapped.response match {
+          case User.BettingSlipAddedResponse(msg) =>
+            context.log.info(msg)
+            Effect.noReply
+        }
     }
   }
 
@@ -86,4 +94,5 @@ object UserManager {
   sealed trait Response
 
   case class GetSlipByRef(userSessionid: String, ref: ActorRef[BettingSlip.Response]) extends Command
+  private final case class WrappedUserResponse(response: User.Response) extends Command
 }
