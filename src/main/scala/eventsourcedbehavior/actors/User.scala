@@ -2,10 +2,8 @@ package eventsourcedbehavior.actors
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
-import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
-import eventsourcedbehavior.actors.BettingSlip.GetBettingSlip
 import eventsourcedbehavior.app.CborSerializable
 
 import scala.concurrent.duration.DurationInt
@@ -25,8 +23,10 @@ object User {
       .onPersistFailure(SupervisorStrategy.restartWithBackoff(200.millis, 5.seconds, 0.1))
     }
   }
-//Todo: Add class to minimize parameters
+
   def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
+    val bettingSlipResponseMapper: ActorRef[BettingSlip.Response] =
+      context.messageAdapter(rsp => WrappedBettingSlipResponse(rsp))
     command match {
       case _@AddBettingSlipToUser(_, replyTo) =>
         val slip = context.spawn(BettingSlip(userId), s"bettingSlip$userId")
@@ -35,9 +35,15 @@ object User {
           .thenReply(replyTo)(
             st => BettingSlipAddedResponse(s"Successfully added slip with ref: ${st.slipRef} to user with id: $userId")
     )
-      case _@GetBettingSlipByRef(replyTo) =>
-        state.slipRef ! GetBettingSlip(replyTo)
+      case _@GetBettingSlipByRef(_) =>
+        state.slipRef ! BettingSlip.GetBettingSlip(bettingSlipResponseMapper)
         Effect.noReply
+      case wrapped: WrappedBettingSlipResponse =>
+        wrapped.response match {
+          case BettingSlip.GetSlipResponse(slipState) =>
+            println(slipState)
+            Effect.noReply
+        }
     }
   }
 
@@ -65,10 +71,6 @@ object User {
   case class SlipAddedToUser(ref: ActorRef[BettingSlip.Command]) extends Event
 
   sealed trait Response
-  //TODO: Change to adapted response
-  //We use an adapted response to avoid the handling of responses from another actor context.
-  // See https://doc.akka.io/docs/akka/current/typed/interaction-patterns.html#adapted-response for information.
-  final case class GetBettingSlipResponse(slip: BettingSlip.State) extends Response
 
   final case class BettingSlipAddedResponse(responseMsg: String) extends Response
 
@@ -80,6 +82,8 @@ object User {
       copy(ref)
     }
   }
+
+  private final case class WrappedBettingSlipResponse(response: BettingSlip.Response) extends Command
 
   //create companion object to be able to create an empty state like we know it from collections
   object State {
