@@ -1,10 +1,10 @@
 package eventsourcedbehavior.actors
 
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, scaladsl}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
 import eventsourcedbehavior.app.CborSerializable
 
 //TODO: Implement logic in handlers and add commands/events/responses
@@ -12,7 +12,7 @@ object BettingSlip {
 
 
   def apply(userId: String): Behavior[Command] = {
-    EventSourcedBehavior[Command, Event, State](
+    EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
       PersistenceId("BettingSlip", userId),
       State.empty,
       (state, command) => handleCommand(userId, state, command),
@@ -21,19 +21,16 @@ object BettingSlip {
       .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
   }
 
-  def handleCommand(userId: String, state: State, command: Command): Effect[Event, State] = {
+  def handleCommand(userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
     command match {
       case _@GetBettingSlip(replyTo) =>
-        replyTo ! StatusReply.Success(GetSlipResponse(state))
-        Effect.none
+        Effect.reply(replyTo)(GetSlipResponse(state))
+        //Effect.none
       case _@UpdateBettingSlip(replyTo, betMap, sum) =>
         Effect
           .persist(BettingSlipUpdated(betMap, sum))
-          .thenRun{
-            updatedBet =>
-              replyTo ! StatusReply.Success(BettingSlipUpdatedResponse(updatedBet))
-              Behaviors.same
-          }
+          .thenReply(replyTo)(
+            _ => BettingSlipUpdatedResponse(state))
     }
   }
 
@@ -52,7 +49,7 @@ object BettingSlip {
 
   sealed trait Response
 
-  final case class GetBettingSlip(replyTo: ActorRef[StatusReply[Response]]) extends Command
+  final case class GetBettingSlip(replyTo: ActorRef[Response]) extends Command
 
   case class GetSlipResponse(state: State) extends Response
 
@@ -67,5 +64,5 @@ object BettingSlip {
 
   case class BettingSlipUpdated(betMap: Map[String, Float], sum: Int) extends Event
 
-  case class UpdateBettingSlip(replyTo: ActorRef[StatusReply[Response]], betMap: Map[String, Float], sum: Int) extends Command
+  case class UpdateBettingSlip(replyTo: ActorRef[Response], betMap: Map[String, Float], sum: Int) extends Command
 }

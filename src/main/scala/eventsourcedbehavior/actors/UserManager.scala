@@ -4,7 +4,7 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
 //import eventsourcedbehavior.actors.User.{AddBettingSlipToUser, GetBettingSlipByRef}
 import eventsourcedbehavior.app.CborSerializable
 
@@ -16,7 +16,7 @@ object UserManager {
   def apply(): Behavior[Command] = {
     Behaviors.supervise[Command] {
       Behaviors.setup { context =>
-        EventSourcedBehavior[Command, Event, State](
+        EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
           PersistenceId.ofUniqueId("UserManager"),
           State.empty,
           (state, command) => handleCommand(context, state, command),
@@ -28,12 +28,12 @@ object UserManager {
     }.onFailure[IllegalStateException](SupervisorStrategy.restart)
   }
 
-  def handleCommand(context: ActorContext[Command], state: State, command: Command): Effect[Event, State] = {
+  def handleCommand(context: ActorContext[Command], state: State, command: Command): ReplyEffect[Event, State] = {
     command match {
       case _@RegisterUserToManager(userSessionId, replyTo) =>
         if(state.registeredUsers.exists(_._1 == userSessionId)) {
           Effect.reply(replyTo)(
-            StatusReply.error(
+            throw new IllegalStateException(
               s"User with id $userSessionId already registered to manager."))
         }
         else {
@@ -41,17 +41,15 @@ object UserManager {
           Effect
             .persist(UserRegisteredToManager(userSessionId, user.ref))
             .thenRun {
-              updatedUserManager =>
-                user ! User.AddBettingSlipToUser(user.ref)
-                replyTo ! StatusReply.Success(
-                  UserRegisteredResponse(
-                    s"User with id $userSessionId registered to manager with actorRef ${updatedUserManager.registeredUsers(userSessionId)}"))
-                Behaviors.same
+                _: State => user ! User.AddBettingSlipToUser(user.ref, replyTo)
             }
+            .thenReply(replyTo)(_ =>
+              UserRegisteredResponse(
+                s"User with id $userSessionId registered to manager with actorRef ${state.registeredUsers(userSessionId)}"))
         }
       case _@GetSlipByRef(userSessionId, replyTo) =>
          state.registeredUsers(userSessionId) ! User.GetBettingSlipByRef(replyTo)
-        Effect.none
+        Effect.noReply
     }
   }
 
@@ -75,7 +73,7 @@ object UserManager {
     }
   }
 
-  final case class RegisterUserToManager(userSessionId: String, replyTo: ActorRef[StatusReply[Response]]) extends Command
+  final case class RegisterUserToManager(userSessionId: String, replyTo: ActorRef[Response]) extends Command
 
   final case class UserRegisteredToManager(userSessionId: String, createdActorRef: ActorRef[User.Command]) extends Event
 
@@ -87,5 +85,5 @@ object UserManager {
 
   sealed trait Response
 
-  case class GetSlipByRef(userSessionid: String, ref: ActorRef[StatusReply[BettingSlip.Response]]) extends Command
+  case class GetSlipByRef(userSessionid: String, ref: ActorRef[BettingSlip.Response]) extends Command
 }

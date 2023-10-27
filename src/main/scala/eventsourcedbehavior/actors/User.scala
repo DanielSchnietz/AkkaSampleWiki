@@ -4,7 +4,7 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
 import eventsourcedbehavior.actors.BettingSlip.GetBettingSlip
 import eventsourcedbehavior.app.CborSerializable
 
@@ -15,7 +15,7 @@ object User {
 
   def apply(userId: String): Behavior[Command] = {
     Behaviors.setup { context =>
-    EventSourcedBehavior[Command, Event, State](
+    EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
       PersistenceId("User", userId),
       State.empty,
       (state, command) => handleCommand(context, userId, state, command),
@@ -26,20 +26,18 @@ object User {
     }
   }
 //Todo: Add class to minimize parameters
-  def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): Effect[Event, State] = {
+  def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
     command match {
-      case _ :AddBettingSlipToUser =>
+      case _@AddBettingSlipToUser(_, replyTo) =>
         val slip = context.spawn(BettingSlip(userId), s"bettingSlip$userId")
         Effect
           .persist(SlipAddedToUser(slip.ref))
-          .thenRun {context.log.info("Slip added successfully")
-            updatedUser =>
-              BettingSlipAddedResponse(s"Successfully added slip with ref: ${updatedUser.slipRef} to user with id: $userId")
-              Behaviors.same
-          }
+          .thenReply(replyTo)(
+            _ => BettingSlipAddedResponse(s"Successfully added slip with ref: ${state.slipRef} to user with id: $userId")
+    )
       case _@GetBettingSlipByRef(replyTo) =>
         state.slipRef ! GetBettingSlip(replyTo)
-        Effect.none
+        Effect.noReply
     }
   }
 
@@ -56,8 +54,8 @@ object User {
   //2: Produce a warning if we forget to match a type inside our pattern matching
   sealed trait Command extends CborSerializable
 
-  final case class AddBettingSlipToUser(userRef: ActorRef[Command]) extends Command
-  final case class GetBettingSlipByRef(replyTo: ActorRef[StatusReply[BettingSlip.Response]]) extends Command
+  final case class AddBettingSlipToUser(userRef: ActorRef[Command], replyTo: ActorRef[UserManager.Response]) extends Command
+  final case class GetBettingSlipByRef(replyTo: ActorRef[BettingSlip.Response]) extends Command
 
   //private final case class WrappedBettingSlipResponse(response: BettingSlip.Response) extends Command
 
