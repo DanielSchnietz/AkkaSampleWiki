@@ -45,9 +45,9 @@ object UserManager {
             .thenRun {
                 _: State => user ! User.AddBettingSlipToUser(user.ref, userResponseMapper)
             }
-            .thenReply(replyTo)(_ =>
+            .thenReply(replyTo)(st =>
               UserRegisteredResponse(
-                s"User with id $userSessionId registered to manager with actorRef ${state.registeredUsers(userSessionId)}"))
+                s"User with id $userSessionId registered to manager with actorRef ${st.registeredUsers(userSessionId)}"))
         }
       case _@GetSlipByRef(userSessionId, replyTo) =>
          state.registeredUsers(userSessionId) ! User.GetBettingSlipByRef(replyTo)

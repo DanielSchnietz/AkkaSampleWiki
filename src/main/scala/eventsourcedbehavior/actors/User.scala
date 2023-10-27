@@ -33,7 +33,7 @@ object User {
         Effect
           .persist(SlipAddedToUser(slip.ref))
           .thenReply(replyTo)(
-            _ => BettingSlipAddedResponse(s"Successfully added slip with ref: ${state.slipRef} to user with id: $userId")
+            st => BettingSlipAddedResponse(s"Successfully added slip with ref: ${st.slipRef} to user with id: $userId")
     )
       case _@GetBettingSlipByRef(replyTo) =>
         state.slipRef ! GetBettingSlip(replyTo)
