@@ -5,11 +5,11 @@ Project is located at the master branch right now until mor work on setup is don
 ## TODO's:
 - [] Cleanup build.sbt
 - [] Add tests
-- [] Add logic to BettingSlipActor
+- [x] Add logic to BettingSlipActor
 - [] Add error handling
 - [] Reduce scope of methods
 - [] Add samples for different tools and patterns (cluster, communication pattern, routing, supervision)
-- [] Add sample for enforcedReplies
+- [x] Add sample for enforcedReplies
 - [] Add OOP sample for comparison
 - [] Add calls in App to showcase more usecases
 - [] Rework interaction patterns following guidelined and eliminate foreign responses inside of actor ( adaptedredponse)
