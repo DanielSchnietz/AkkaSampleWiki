@@ -11,5 +11,7 @@ Project is located at the master branch right now until mor work on setup is don
 - [] Add samples for different tools and patterns (cluster, communication pattern, routing, supervision)
 - [x] Add sample for enforcedReplies
 - [] Add OOP sample for comparison
+- [] Add fully functional sample for comparison
 - [] Add calls in App to showcase more usecases
-- [] Rework interaction patterns following guidelined and eliminate foreign responses inside of actor ( adaptedredponse)
+- [x] Rework interaction patterns following guidelined and eliminate foreign responses inside of actor ( adaptedredponse)
+- [ ] add Receptionist
