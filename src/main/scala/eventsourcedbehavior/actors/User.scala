@@ -25,8 +25,6 @@ object User {
   }
 
   def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
-    val bettingSlipResponseMapper: ActorRef[BettingSlip.Response] =
-      context.messageAdapter(rsp => WrappedBettingSlipResponse(rsp))
     command match {
       case _@AddBettingSlipToUser(_, replyTo) =>
         val slip = context.spawn(BettingSlip(userId), s"bettingSlip$userId")
@@ -35,15 +33,9 @@ object User {
           .thenReply(replyTo)(
             st => BettingSlipAddedResponse(s"Successfully added slip with ref: ${st.slipRef} to user with id: $userId")
     )
-      case _@GetBettingSlipByRef(_) =>
-        state.slipRef ! BettingSlip.GetBettingSlip(bettingSlipResponseMapper)
+      case _@GetBettingSlipByRef(replyTo) =>
+        state.slipRef ! BettingSlip.GetBettingSlip(replyTo)
         Effect.noReply
-      case wrapped: WrappedBettingSlipResponse =>
-        wrapped.response match {
-          case BettingSlip.GetSlipResponse(slipState) =>
-            println(slipState)
-            Effect.noReply
-        }
     }
   }
 
@@ -82,8 +74,6 @@ object User {
       copy(ref)
     }
   }
-
-  private final case class WrappedBettingSlipResponse(response: BettingSlip.Response) extends Command
 
   //create companion object to be able to create an empty state like we know it from collections
   object State {
