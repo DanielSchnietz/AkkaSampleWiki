@@ -1,24 +1,30 @@
 package eventsourcedbehavior.actors
 
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, scaladsl}
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy, scaladsl}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
+import eventsourcedbehavior.actors.UserManager.Command
 import eventsourcedbehavior.app.CborSerializable
+
+import scala.concurrent.duration.DurationInt
 
 //TODO: Implement logic in handlers and add commands/events/responses
 object BettingSlip {
 
 
   def apply(userId: String): Behavior[Command] = {
-    EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
-      PersistenceId("BettingSlip", userId),
-      State.empty,
-      (state, command) => handleCommand(userId, state, command),
-      (state, event) => handleEvent(state, event)
-    )
-      .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
+    Behaviors.supervise[Command] {
+      EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
+          PersistenceId("BettingSlip", userId),
+          State.empty,
+          (state, command) => handleCommand(userId, state, command),
+          (state, event) => handleEvent(state, event)
+        )
+        .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
+        .onPersistFailure(SupervisorStrategy.restartWithBackoff(200.millis, 5.seconds, 0.1))
+    }.onFailure[Exception](SupervisorStrategy.restart)
   }
 
   def handleCommand(userId: String, state: State, command: Command): ReplyEffect[Event, State] = {

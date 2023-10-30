@@ -40,6 +40,7 @@ object UserManager {
         }
         else {
           val user = context.spawn(User(userSessionId), userSessionId)
+          context.watch(user)
           Effect
             .persist(UserRegisteredToManager(userSessionId, user.ref))
             .thenRun {
