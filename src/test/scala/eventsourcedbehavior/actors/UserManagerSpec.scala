@@ -3,8 +3,7 @@ package eventsourcedbehavior.actors
 import akka.Done
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import akka.persistence.typed.PersistenceId
-import akka.actor.testkit.typed.scaladsl.LogCapturing
-import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
+import akka.actor.testkit.typed.scaladsl.{BehaviorTestKit, LogCapturing, ScalaTestWithActorTestKit}
 import akka.pattern.StatusReply
 import com.typesafe.config.ConfigFactory
 import org.scalatest.BeforeAndAfterEach
@@ -31,6 +30,8 @@ class UserManagerSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseStrin
     "spawn a User child Actor" in {
       val result = eventSourcedTestKit.runCommand[UserManager.Response](replyTo => UserManager.RegisterUserToManager("id1", replyTo))
       result.event shouldBe a [UserManager.UserRegisteredToManager]
+      result.reply shouldBe a [UserManager.UserRegisteredResponse]
+      result.stateOfType[UserManager.State].registeredUsers.size shouldBe 1
     }
   }
 }
