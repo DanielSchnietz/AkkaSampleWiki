@@ -1,14 +1,10 @@
 package eventsourcedbehavior.actors
 
-import akka.Done
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
-import akka.persistence.typed.PersistenceId
-import akka.actor.testkit.typed.scaladsl.{BehaviorTestKit, LogCapturing, ScalaTestWithActorTestKit}
-import akka.pattern.StatusReply
+import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import com.typesafe.config.ConfigFactory
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.wordspec.AnyWordSpecLike
-import eventsourcedbehavior.actors.UserManager
 
 class UserManagerSpec extends ScalaTestWithActorTestKit(ConfigFactory.parseString("akka.actor.allow-java-serialization = on")
   .withFallback(EventSourcedBehaviorTestKit.config))

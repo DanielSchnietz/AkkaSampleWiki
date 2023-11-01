@@ -1,12 +1,10 @@
 package eventsourcedbehavior.actors
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
 import eventsourcedbehavior.app.CborSerializable
-
-import scala.concurrent.duration.DurationInt
 
 
 object User {
@@ -19,11 +17,22 @@ object User {
       (state, command) => handleCommand(context, userId, state, command),
       (state, event) => handleEvent(state, event)
     )
-      /*.withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
-      .onPersistFailure(SupervisorStrategy.restartWithBackoff(200.millis, 5.seconds, 0.1))*/
     }
   }
 
+  /** Commandhandler which handles all incoming messages of type Command.
+   *
+   * @note These handlers DO NOT return the next Behavior wanted for the specific case matched like in FSM or "normal" typed akka actors.
+   *       These handlers return the current an ReplyEffect / the current state.
+   *       You need to:
+   *       Add an ActorRef ( replyTo ) to every command.
+   *       Return at least NoReply ( if you don't want to reply ) or an actual reply.
+   * @param context You can pass context to it like done in this example if you need to. This is optional to do so.
+   * @param state   The current state of this actor.
+   * @param command The message of type Command which is recieved.
+   * @see https://doc.akka.io/docs/akka/current/typed/persistence.html#command-handler
+   * @return Returns an ReplyEffect[Event, State].
+   */
   def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
     command match {
       case _@AddBettingSlipToUser(_, replyTo) =>
@@ -39,6 +48,13 @@ object User {
     }
   }
 
+  /** Eventhandler which handles all incoming messages of type Event.
+   *
+   * @param state The current state of this actor.
+   * @param event The message of type Event which is received.
+   * @see https://doc.akka.io/docs/akka/current/typed/persistence.html#event-handler
+   * @return Returns the State of this actor.
+   */
   def handleEvent(state: State, event: Event): State = {
     event match {
       case _@SlipAddedToUser(ref) =>
@@ -60,7 +76,7 @@ object User {
   //events
   sealed trait Event extends CborSerializable
 
-  case class SlipAddedToUser(ref: ActorRef[BettingSlip.Command]) extends Event
+  private case class SlipAddedToUser(ref: ActorRef[BettingSlip.Command]) extends Event
 
   sealed trait Response
 
@@ -77,6 +93,6 @@ object User {
 
   //create companion object to be able to create an empty state like we know it from collections
   object State {
-    val empty = State(null)
+    val empty: State = State(null)
   }
 }
