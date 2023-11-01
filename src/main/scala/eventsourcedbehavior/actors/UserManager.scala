@@ -16,7 +16,7 @@ object UserManager {
   def apply(): Behavior[Command] = {
     Behaviors.supervise[Command] {
       Behaviors.setup { context =>
-        EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
+        EventSourcedBehavior[Command, Event, State](
           PersistenceId.ofUniqueId("UserManager"),
           State.empty,
           (state, command) => handleCommand(context, state, command),
@@ -28,7 +28,7 @@ object UserManager {
     }.onFailure[IllegalStateException](SupervisorStrategy.restart)
   }
 
-  def handleCommand(context: ActorContext[Command], state: State, command: Command): ReplyEffect[Event, State] = {
+  def handleCommand(context: ActorContext[Command], state: State, command: Command): Effect[Event, State] = {
     val userResponseMapper: ActorRef[User.Response] =
       context.messageAdapter(rsp => WrappedUserResponse(rsp))
     command match {

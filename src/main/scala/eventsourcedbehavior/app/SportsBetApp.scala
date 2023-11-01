@@ -52,7 +52,9 @@ object SportsBetApp {
       ))
     betFuture.onComplete {
       case scala.util.Success(BettingSlip.GetSlipResponse(slip)) =>
-        println(slip)
+        println(s"Current BettingSlip $slip")
+      case scala.util.Success(BettingSlip.BettingSlipUpdatedResponse(state)) =>
+        println(s"New BettingSLip State: $state")
       case Failure(ex) => println(s"Something went wrong! ${ex.getMessage}")
     }
   }

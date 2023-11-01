@@ -16,7 +16,7 @@ object BettingSlip {
 
   def apply(userId: String): Behavior[Command] = {
     Behaviors.supervise[Command] {
-      EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
+      EventSourcedBehavior[Command, Event, State](
           PersistenceId("BettingSlip", userId),
           State.empty,
           (state, command) => handleCommand(userId, state, command),
@@ -27,7 +27,7 @@ object BettingSlip {
     }.onFailure[Exception](SupervisorStrategy.restart)
   }
 
-  def handleCommand(userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
+  def handleCommand(userId: String, state: State, command: Command): Effect[Event, State] = {
     command match {
       case _@GetBettingSlip(replyTo) =>
         Effect.reply(replyTo)(GetSlipResponse(state))

@@ -13,7 +13,7 @@ object User {
 
   def apply(userId: String): Behavior[Command] = {
     Behaviors.setup { context =>
-    EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
+    EventSourcedBehavior[Command, Event, State](
       PersistenceId("User", userId),
       State.empty,
       (state, command) => handleCommand(context, userId, state, command),
@@ -24,7 +24,7 @@ object User {
     }
   }
 
-  def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
+  def handleCommand(context: ActorContext[Command], userId: String, state: State, command: Command): Effect[Event, State] = {
     command match {
       case _@AddBettingSlipToUser(_, replyTo) =>
         val slip = context.spawn(BettingSlip(userId), s"bettingSlip$userId")
