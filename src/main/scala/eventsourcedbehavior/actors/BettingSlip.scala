@@ -1,11 +1,9 @@
 package eventsourcedbehavior.actors
 
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy, scaladsl}
-import akka.pattern.StatusReply
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
-import eventsourcedbehavior.actors.UserManager.Command
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import eventsourcedbehavior.app.CborSerializable
 
 import scala.concurrent.duration.DurationInt
@@ -13,13 +11,17 @@ import scala.concurrent.duration.DurationInt
 //TODO: Implement logic in handlers and add commands/events/responses
 object BettingSlip {
 
-
+  /** Creates the supervised BettingSlip actor with an EventSourcedBehavior.
+   *
+   * @see https://doc.akka.io/docs/akka/2.8.5/typed/fault-tolerance.html#supervision
+   * @see https://doc.akka.io/docs/akka/current/typed/persistence.html#event-sourcing
+   */
   def apply(userId: String): Behavior[Command] = {
     Behaviors.supervise[Command] {
       EventSourcedBehavior[Command, Event, State](
           PersistenceId("BettingSlip", userId),
           State.empty,
-          (state, command) => handleCommand(userId, state, command),
+          (state, command) => handleCommand(state, command),
           (state, event) => handleEvent(state, event)
         )
         .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
@@ -27,7 +29,16 @@ object BettingSlip {
     }.onFailure[Exception](SupervisorStrategy.restart)
   }
 
-  def handleCommand(userId: String, state: State, command: Command): Effect[Event, State] = {
+  /** Commandhandler which handles all incoming messages of type Command.
+   *
+   * @note These handlers DO NOT return the next Behavior wanted for the specific case matched like in FSM or "normal" typed akka actors.
+   *       These handlers return the current an Effect / the current state
+   * @param state   The current state of this actor.
+   * @param command The message of type Command which is recieved.
+   * @see https://doc.akka.io/docs/akka/current/typed/persistence.html#command-handler
+   * @return Returns an Effect[Event, State].
+   */
+  def handleCommand(state: State, command: Command): Effect[Event, State] = {
     command match {
       case _@GetBettingSlip(replyTo) =>
         Effect.reply(replyTo)(GetSlipResponse(state))
@@ -40,6 +51,13 @@ object BettingSlip {
     }
   }
 
+  /** Eventhandler which handles all incoming messages of type Event.
+   *
+   * @param state The current state of this actor.
+   * @param event The message of type Event which is recieved.
+   * @see https://doc.akka.io/docs/akka/current/typed/persistence.html#event-handler
+   * @return Returns the State of this actor.
+   */
   def handleEvent(state: State, event: Event): State = {
     event match {
       case _@BettingSlipUpdated(betMap, sum) =>
@@ -48,6 +66,9 @@ object BettingSlip {
   }
 
   //commands
+  //Because traits of Commands, Events and Responses are sealed, they can:
+  //1: Not the inherited outside of this Actor
+  //2: Produce a warning if we forget to match a type inside our pattern matching
   sealed trait Command extends CborSerializable
 
   //events
@@ -63,12 +84,12 @@ object BettingSlip {
   final case class State(userRef: ActorRef[Command], betMap: Map[String, Float], sum: Int) extends CborSerializable
 
   object State {
-    val empty = State(null, Map.empty, 0)
+    val empty: State = State(null, Map.empty, 0)
   }
 
   final case class BettingSlipUpdatedResponse(updatedBet: State) extends Response
 
-  case class BettingSlipUpdated(betMap: Map[String, Float], sum: Int) extends Event
+  private case class BettingSlipUpdated(betMap: Map[String, Float], sum: Int) extends Event
 
-  case class UpdateBettingSlip(replyTo: ActorRef[Response], betMap: Map[String, Float], sum: Int) extends Command
+  private case class UpdateBettingSlip(replyTo: ActorRef[Response], betMap: Map[String, Float], sum: Int) extends Command
 }
