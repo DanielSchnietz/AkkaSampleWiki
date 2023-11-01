@@ -8,7 +8,7 @@ with enforced replies: https://github.com/DanielSchnietz/AkkaSampleWiki/tree/wit
 ## TODO's:
 - [x] Cleanup build.sbt
 - [ ] Add more tests
-- [ ] update master branch to implement tests as well
+- [x] update master branch to implement tests as well
 - [x] Add logic to BettingSlipActor
 - [ ] Improve / extend error handling
 - [x] Bubble up errors to parent
@@ -23,6 +23,6 @@ with enforced replies: https://github.com/DanielSchnietz/AkkaSampleWiki/tree/wit
 - [ ] add Receptionist
 - [ ] add routing
 - [ ] add cluster example
-- [ ] Add documentation
+- [x] Add documentation
 - [ ] cleanup
 
