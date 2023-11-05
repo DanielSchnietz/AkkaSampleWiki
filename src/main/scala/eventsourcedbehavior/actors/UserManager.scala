@@ -1,12 +1,9 @@
 package eventsourcedbehavior.actors
 
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
-import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect, RetentionCriteria}
+import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
+import akka.actor.typed.{ActorRef, Behavior, PostStop, Signal, SupervisorStrategy}
 import eventsourcedbehavior.app.CborSerializable
 
-import scala.concurrent.duration.DurationInt
 
 /** Factory for [[eventsourcedbehavior.actors.UserManager]] */
 object UserManager {
@@ -19,19 +16,9 @@ object UserManager {
    * @see https://doc.akka.io/docs/akka/current/typed/persistence.html#replies
    */
   def apply(): Behavior[Command] = {
-    Behaviors.supervise[Command] {
-      Behaviors.setup { context =>
-        EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
-          PersistenceId.ofUniqueId("UserManager"),
-          State.empty,
-          (state, command) => handleCommand(context, state, command),
-          (state, event) => handleEvent(state, event)
-        )
-          .withRetention(RetentionCriteria.snapshotEvery(numberOfEvents = 100, keepNSnapshots = 3))
-          .onPersistFailure(SupervisorStrategy.restartWithBackoff(200.millis, 5.seconds, 0.1))
-      }
-    }.onFailure[IllegalStateException](SupervisorStrategy.restart)
+      Behaviors.setup(context => new UserManager(context))
   }
+
 
   /** Commandhandler which handles all incoming messages of type Command.
    *
@@ -46,7 +33,7 @@ object UserManager {
    * @see https://doc.akka.io/docs/akka/current/typed/persistence.html#command-handler
    * @return Returns an ReplyEffect[Event, State].
    */
-  def handleCommand(context: ActorContext[Command], state: State, command: Command): ReplyEffect[Event, State] = {
+  /*def handleCommand(context: ActorContext[Command], state: State, command: Command): ReplyEffect[Event, State] = {
     val userResponseMapper: ActorRef[User.Response] =
       context.messageAdapter(rsp => WrappedUserResponse(rsp))
     command match {
@@ -92,7 +79,7 @@ object UserManager {
       case _@UserRegisteredToManager(id, actorRef) =>
         state.updateUsers(id, actorRef)
     }
-  }
+  }*/
 
   //commands
   sealed trait Command extends CborSerializable
@@ -121,4 +108,60 @@ object UserManager {
 
   case class GetSlipByRef(userSessionId: String, ref: ActorRef[BettingSlip.Response]) extends Command
   private final case class WrappedUserResponse(response: User.Response) extends Command
+}
+
+class UserManager(context: ActorContext[UserManager.Command]) extends AbstractBehavior(context = context){
+  import UserManager._
+
+  private var registeredUsers: Map[String, ActorRef[User.Command]] = Map.empty
+
+  override def onMessage(msg: Command): Behavior[Command] = {
+    val userResponseMapper: ActorRef[User.Response] =
+      context.messageAdapter(rsp => WrappedUserResponse(rsp))
+    msg match {
+      case _@RegisterUserToManager(userSessionId, replyTo) =>
+        if (registeredUsers.exists(_._1 == userSessionId)) {
+          Effect.reply(replyTo)(
+            throw new IllegalStateException(
+              s"User with id $userSessionId already registered to manager."))
+        }
+        else {
+          val user = context.spawn(User(userSessionId), userSessionId)
+          context.watch(user)
+          Effect
+            .persist(UserRegisteredToManager(userSessionId, user.ref))
+            .thenRun {
+              _: State => user ! User.AddBettingSlipToUser(user.ref, userResponseMapper)
+            }
+            .thenReply(replyTo)(st =>
+              UserRegisteredResponse(
+                s"User with id $userSessionId registered to manager with actorRef ${st.registeredUsers(userSessionId)}"))
+        }
+      case _@GetSlipByRef(userSessionId, replyTo) =>
+        state.registeredUsers(userSessionId) ! User.GetBettingSlipByRef(replyTo)
+        Effect.noReply
+      case wrapped: WrappedUserResponse =>
+        wrapped.response match {
+          case User.BettingSlipAddedResponse(msg) =>
+            context.log.info(msg)
+            Effect.noReply
+        }
+    }
+      case RecordTemperature(id, value, replyTo) =>
+        context.log.info("Recorded temperature reading {} with {}", value, id)
+        lastTemperatureReading = Some(value)
+        replyTo ! TemperatureRecorded(id)
+        this
+
+      case ReadTemperature(id, replyTo) =>
+        replyTo ! RespondTemperature(id, lastTemperatureReading)
+        this
+    }
+  }
+
+  override def onSignal: PartialFunction[Signal, Behavior[Command]] = {
+    case PostStop =>
+      context.log.info("Device actor {}-{} stopped", groupId, deviceId)
+      this
+  }
 }
